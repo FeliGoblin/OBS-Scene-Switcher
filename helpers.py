@@ -10,7 +10,6 @@ from const import (
     Group,
     Scene,
     Scene_Item,
-    Transition,
 )
 from data import Data
 
@@ -35,23 +34,6 @@ class Helpers:
                     "vendorName": "obs-browser",
                     "requestType": "emit_event",
                     "requestData": {"event_name": event_name, "event_data": event_data},
-                },
-            )
-        )
-
-    async def set_transition(self, transition_name: Transition):
-        await self.websocket.call(
-            simpleobsws.Request(
-                "CallVendorRequest",
-                {
-                    "vendorName": "obs-browser",
-                    "requestType": "emit_event",
-                    "requestData": {
-                        "event_name": "overlay-transition",
-                        "event_data": {
-                            "triggerName": transition_name.value
-                        }
-                    },
                 },
             )
         )

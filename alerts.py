@@ -11,18 +11,18 @@ _LOGGER = logging.getLogger("Alerts")
 class Alert:
     def __init__(self, action: Action):
         self.action = action
-        self.alert_queue = asyncio.Queue()
-        self.alert_worker_task: asyncio.Task | None = None
+        self.queue = asyncio.Queue()
+        self.worker_task: asyncio.Task | None = None
 
-    async def _alert_worker(self):
+    async def _worker(self):
         while True:
-            alert, event_data = await self.alert_queue.get()
+            alert, event_data = await self.queue.get()
             try:
                 await alert(event_data)
             except Exception:
                 _LOGGER.exception("Alert playback failed")
             finally:
-                self.alert_queue.task_done()
+                self.queue.task_done()
 
     async def Subscription(self, data: dict):
         """Twitch Subscription."""
@@ -48,13 +48,13 @@ class Alert:
         except:  # noqa: E722
             submessage = ""
 
-        await self.action.Trigger_Alert(message, submessage, Const_Alert.SUBSCRIPTION_DURATION_MS.value)
+        await self.action.Trigger_Alert(message, submessage, Const_Alert.DURATION_MS.value)
 
     async def Raid(self, data: dict):
         """Twitch Raid."""
         message = f"{RED_SPN}{data.get("user", "Anonymous")}{END_SPN} raided with {RED_SPN}{data.get("viewers", "0")}{END_SPN} viewers!"
 
-        await self.action.Trigger_Alert(message, "", Const_Alert.SUBSCRIPTION_DURATION_MS.value)
+        await self.action.Trigger_Alert(message, "", Const_Alert.DURATION_MS.value)
 
     async def Donation(self, data: dict):
         """Kofi Donation."""
@@ -67,7 +67,7 @@ class Alert:
         if len(submessage) > 80:
             submessage = f"{submessage[:80]} [...]"
 
-        await self.action.Trigger_Alert(message, submessage, Const_Alert.SUBSCRIPTION_DURATION_MS.value)
+        await self.action.Trigger_Alert(message, submessage, Const_Alert.DURATION_MS.value)
 
     async def Cheer(self, data: dict):
         """Twitch Cheer."""
@@ -84,17 +84,17 @@ class Alert:
         if len(submessage) > 80:
             submessage = f"{submessage[:80]} [...]"
 
-        await self.action.Trigger_Alert(message, submessage, Const_Alert.SUBSCRIPTION_DURATION_MS.value)
+        await self.action.Trigger_Alert(message, submessage, Const_Alert.DURATION_MS.value)
 
     async def Gift_Subscription(self, data: dict):
         """Twitch Gift Subscription."""
         message = f"{RED_SPN}{data.get("userName", "Anonymous")}{END_SPN} gifted a {data.get("tier", "").capitalize()} subscription to {RED_SPN}{data.get("recipientUserName", "Anonymous")}{END_SPN}!"
 
-        await self.action.Trigger_Alert(message, "", Const_Alert.SUBSCRIPTION_DURATION_MS.value)
+        await self.action.Trigger_Alert(message, "", Const_Alert.DURATION_MS.value)
 
     async def Gift_Bomb(self, data: dict):
         """Twitch Cheer."""
         message = f"{RED_SPN}{data.get("userName", "Anonymous")}{END_SPN} just gifted {RED_SPN}{data.get("gifts")}{END_SPN} {data.get("tier", "").capitalize()} subscriptions!"
 
-        await self.action.Trigger_Alert(message, "", Const_Alert.SUBSCRIPTION_DURATION_MS.value)
+        await self.action.Trigger_Alert(message, "", Const_Alert.DURATION_MS.value)
 

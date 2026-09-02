@@ -3,4 +3,4 @@ __pycache__/
 *.bat
 *.lnk
 *.code-workspace
-_secret.py
+secret.py

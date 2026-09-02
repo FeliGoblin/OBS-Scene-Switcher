@@ -5,11 +5,11 @@ import simpleobsws
 
 from actions import Action
 from alerts import Alert
-from const import OBS, OFF, ON, Audio, Group, Scene_Item, Transition
+from const import OBS, OFF, ON
 from data import Data
 from helpers import Helpers
-from overlays import Overlay
 from secret import Secret
+from transitions import Transition
 
 logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger("Manager")
@@ -27,13 +27,13 @@ class Overlay_Manager:
 
         self.helper = Helpers(self.data)
         self.action = Action(self.helper, self.data)
-        self.overlay = Overlay(self.action)
-        self.overlay_switching_task: asyncio.Task | None = None
+        self.transition = Transition(self.action)
         self.alert = Alert(self.action)
 
     async def setup(self):
         await self.trigger_websocket()
-        self.alert_worker_task = asyncio.create_task(self.alert._alert_worker())
+        self.alert.worker_task = asyncio.create_task(self.alert._worker())
+        self.transition.worker_task = asyncio.create_task(self.transition._worker())
 
     async def trigger_websocket(self):
         if self.websocket:
@@ -98,14 +98,6 @@ class Overlay_Manager:
 
                 # Register events to listen for.
                 self.websocket.register_event_callback(
-                    self.CurrentSceneTransitionChanged,
-                    "CurrentSceneTransitionChanged",
-                )
-                self.websocket.register_event_callback(
-                    self.SceneItemEnableStateChanged,
-                    "SceneItemEnableStateChanged",
-                )
-                self.websocket.register_event_callback(
                     self.CustomEvent,
                     "CustomEvent",
                 )
@@ -125,76 +117,52 @@ class Overlay_Manager:
         """Got a CustomEvent through OBS."""
         try:
             event_name = str(eventData["event_name"])
+            data = eventData["event_data"]
+            triggerName = data["triggerName"].replace(" ", "_")
+            assert "scene-switcher-" in event_name
+            assert triggerName
         except:  # noqa: E722
             return
 
-        if event_name != "overlay-alert":
-            return
+        match event_name:
+            case "scene-switcher-alert":
+                if alert := getattr(self.alert, triggerName, None):
+                    await self.alert.queue.put((alert, data))
+                    _LOGGER.info(
+                        "Adding alert '%s' to queue. Queue size: %s",
+                        triggerName,
+                        str(self.alert.queue.qsize()),
+                    )
 
-        triggerName = eventData["event_data"].get("triggerName", "").replace(" ", "_")
-        alert = getattr(self.alert, triggerName, None)
+            case "scene-switcher-transition":
+                if transition := getattr(self.transition, triggerName, None):
+                    await self.transition.queue.put((transition, data))
+                    _LOGGER.info(
+                        "Adding transition '%s' to queue. Queue size: %s",
+                        triggerName,
+                        str(self.transition.queue.qsize()),
+                    )
 
-        if alert:
-            await self.alert.alert_queue.put((alert, eventData["event_data"]))
-            _LOGGER.info(
-                "Adding alert '%s' to queue. Queue size: %s",
-                triggerName,
-                str(self.alert.alert_queue.qsize()),
-            )
-
-    async def CurrentSceneTransitionChanged(self, eventData):
-        """OBS Scene Transition changed."""
-        try:
-            transition_name = str(eventData["transitionName"])
-        except:  # noqa: E722
-            return
-
-        _LOGGER.debug("Transition changed to: %s", transition_name)
-
-        if not (transition_name.startswith(("OL_", "A_"))):
-            return
-
-        if transition_name.startswith("OL_"):
-            overlay = getattr(self.overlay, transition_name.removeprefix("OL_"), None)
-            if overlay:
-                if self.overlay_switching_task:
-                    self.overlay_switching_task.cancel()
-                    self.overlay_switching_task = None
-
-                self.overlay_switching_task = asyncio.create_task(overlay())
-
-        if transition_name.startswith("A_"):
-            try:
-                audio = Transition(transition_name)
-                action, _input = audio.name.split("_", 1)
-                input = Audio[_input]
-                mute = action == "MUTE"
-                asyncio.create_task(self.helper.toggle_audio_input(input, mute))
-            except:  # noqa: E722
-                return
-
-    async def SceneItemEnableStateChanged(self, eventData):
-        """OBS Scene Item was hidden or shown."""
-        try:
-            item_id = int(eventData["sceneItemId"])
-            item_enabled = bool(eventData["sceneItemEnabled"])
-        except:  # noqa: E722
-            return
-
-        if item_id == self.data.group_item[Group.EXTRA][Scene_Item.VOICE_VISUALS]:
-            _LOGGER.info("Voice Visuals set enabled to: %s", str(item_enabled))
-            await self.action.Voice_Visuals(item_enabled)
-
-        elif item_id == self.data.group_item[Group.EXTRA][Scene_Item.MUSIC_AUDIO]:
-            _LOGGER.info("Music Audio set enabled to: %s", str(item_enabled))
-            self.action.Audio(Audio.MUSIC, not item_enabled)
+            case "scene-switcher-audio":
+                if triggerName == "Comms":
+                    _LOGGER.info(
+                        "Voice Visuals set enabled to: %s", str(data.get("mute"))
+                    )
+                    await self.action.Voice_Visuals(data.get("mute"))
+                if triggerName == "Music":
+                    _LOGGER.info(
+                        "Music Audio set enabled to: %s", str(data.get("mute"))
+                    )
+                    await self.action.Music_Visuals(data.get("mute"))
 
 
 def main():
     overlay_manager = Overlay_Manager()
     loop = asyncio.new_event_loop()
 
-    _LOGGER.info("Starting event loop, scheduling OBS WebSocket and Alerts Queue setup...")
+    _LOGGER.info(
+        "Starting event loop, scheduling OBS WebSocket and Queue setup..."
+    )
     loop.call_soon(asyncio.create_task, overlay_manager.setup())
     try:
         loop.run_forever()

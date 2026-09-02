@@ -11,9 +11,9 @@ from const import (
     Audio,
     Filter,
     Group,
+    Idle_Text,
     Scene,
     Scene_Item,
-    Transition,
 )
 from data import Data
 from helpers import Helpers
@@ -64,7 +64,7 @@ class Action:
         await self.Alert.Text_Opacity(HIDE)
         await sleep(100)
 
-    async def Show_Idle_Overlay(self, text: Transition, enable_camera: bool) -> None:
+    async def Show_Idle_Overlay(self, text: Idle_Text, enable_camera: bool) -> None:
         overlay_on = self.data.idle_overlay_enabled
         cam_on = self.data.idle_camera_enabled
 
@@ -202,6 +202,14 @@ class Action:
                 visibility,
             )
 
+    async def Music_Visuals(self, visibility: bool):
+        self.Audio(Audio.MUSIC, not visibility)
+        await self.helper.set_visibility(
+            Scene.MUSIC,
+            Group.MUSIC,
+            visibility,
+        )
+
     class _Alert:
         def __init__(self, helper: Helpers):
             self.helper = helper
@@ -218,7 +226,9 @@ class Action:
             )
 
         async def Text_Opacity(self, visibility: bool):
-            _LOGGER.debug("Alert text opacity: " + "Showing" if visibility else "Hiding")
+            _LOGGER.debug(
+                "Alert text opacity: " + "Showing" if visibility else "Hiding"
+            )
             await self.helper.call_vendor_request(
                 "overlay-alert", {"trigger": "alert_opacity", "visibility": visibility}
             )
@@ -230,7 +240,9 @@ class Action:
             )
 
         async def Submessage_Typing(self, reveal: bool):
-            _LOGGER.debug("Alert submessage typing: " + "Typing" if reveal else "Untyping")
+            _LOGGER.debug(
+                "Alert submessage typing: " + "Typing" if reveal else "Untyping"
+            )
             await self.helper.call_vendor_request(
                 "overlay-alert", {"trigger": "alert_submsg_typing", "reveal": reveal}
             )
@@ -284,9 +296,11 @@ class Action:
                 visibility,
             )
 
-        async def Set_Text(self, text: Transition):
+        async def Set_Text(self, text: Idle_Text):
             _LOGGER.debug("Setting text")
-            await self.helper.set_transition(text)
+            await self.helper.call_vendor_request(
+                "overlay-transition", {"trigger": "Text_Content", "text": text}
+            )
 
         async def Camera_Visibility(self, visibility: bool):
             _LOGGER.debug("Camera Visibility: " + "Showing" if visibility else "Hiding")
@@ -298,30 +312,30 @@ class Action:
 
         async def Background(self, visibility: bool):
             _LOGGER.debug("Background: " + "Showing" if visibility else "Hiding")
-            await self.helper.set_transition(
-                Transition.SHOW_BACKGROUND if visibility else Transition.HIDE_BACKGROUND
+            await self.helper.call_vendor_request(
+                "overlay-transition", {"trigger": "Background", "show": visibility}
             )
 
         async def Particles(self, visibility: bool):
             _LOGGER.debug("Particles: " + "Showing" if visibility else "Hiding")
-            await self.helper.set_transition(
-                Transition.SHOW_PARTICLES if visibility else Transition.HIDE_PARTICLES
+            await self.helper.call_vendor_request(
+                "overlay-transition", {"trigger": "Particles", "show": visibility}
             )
 
         async def Text_Opacity(self, visibility: bool):
             _LOGGER.debug("Text opacity: " + "Showing" if visibility else "Hiding")
-            await self.helper.set_transition(
-                Transition.SHOW_TEXT if visibility else Transition.HIDE_TEXT
+            await self.helper.call_vendor_request(
+                "overlay-transition", {"trigger": "Text", "show": visibility}
             )
 
         async def Text_Typing(self, reveal: bool):
             _LOGGER.debug("Text typing: " + "Typing" if reveal else "Untyping")
-            await self.helper.set_transition(
-                Transition.TYPE_TEXT if reveal else Transition.UNTYPE_TEXT
+            await self.helper.call_vendor_request(
+                "overlay-transition", {"trigger": "Typing", "show": reveal}
             )
 
         async def Camera_Slide(self, reveal: bool):
             _LOGGER.debug("Camera slide: " + "Showing" if reveal else "Hiding")
-            await self.helper.set_transition(
-                Transition.SHOW_CAMERA if reveal else Transition.HIDE_CAMERA
+            await self.helper.call_vendor_request(
+                "overlay-transition", {"trigger": "Camera", "show": reveal}
             )
